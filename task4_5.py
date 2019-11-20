@@ -2,21 +2,46 @@ import numpy as np
 import pandas as pd
 # import keras 
 # import keras.backend as K
+import os
+os.environ["CUDA_VISIBLE_DEVICES"]="-1"    
+import tensorflow as tf
 from tensorflow import keras
+import matplotlib.pyplot as plt
 
 import sys
 sys.modules['keras'] = keras
-from keras.layers import Input, Dense, Reshape, Flatten, Dropout, LSTM, Softmax
+from keras.layers import Input, Dense, Reshape, Flatten, Dropout, LSTM, Softmax, RepeatVector
 from keras.layers import BatchNormalization, Activation, ZeroPadding2D
 from keras.models import Sequential, Model
 from keras.optimizers import Adam
 from keras.callbacks import EarlyStopping
 import sys
 
-import tensorflow as tf
+# import tensorflow as tf
 from sklearn.model_selection import train_test_split
 from tensorflow.keras.utils import to_categorical
 
+def plot_train_and_val(history, model_name = ' '):
+    plt.figure(figsize=(10,5))
+    plt.plot(history.history['accuracy'])
+    plt.plot(history.history['val_accuracy'])
+    plt.title(model_name + 'model accuracy')
+    plt.ylabel('accuracy')
+    plt.xlabel('epochs')
+    plt.legend(['train', 'Validation'], loc='upper left')
+    plt.show()
+    plt.savefig(model_name+'_Model_accuracy.jpg')
+    '''
+    plt.figure(figsize=(10,5))
+    plt.plot(history.history['loss'])
+    plt.plot(history.history['val_loss'])
+    plt.title(model_name+'_model loss')
+    plt.ylabel('loss')
+    plt.xlabel('epoch')
+    plt.legend(['train', 'Validation'], loc='upper left')
+    plt.show()
+    plt.savefig(model_name+ '_Model_loss.png')
+    '''
 
 ################################
 #Loading and Preprocessing Data
@@ -62,22 +87,24 @@ def LSTM_model(input_shape, output_size):
     model.add(Softmax())
 
     return model
-
+#########################
+# LSTM model for Gyroscope imput
+######################
 LSTM_gyr = LSTM_model(input_shape = gyro_train.shape[1:], output_size=6)
-opt = keras.optimizers.Adam(lr=0.001 , beta_1=0.9, beta_2=0.999)
+opt = keras.optimizers.Adam(lr=0.0001 , beta_1=0.9, beta_2=0.999)
 LSTM_gyr.compile(loss = 'categorical_crossentropy',
             optimizer = opt,
             metrics = ['accuracy'])
 
-stop_early = keras.callbacks.EarlyStopping(monitor='val_loss', patience=5, verbose=1 )
+stop_early = keras.callbacks.EarlyStopping(monitor='val_loss', patience=10, verbose=1 )
 
 batch_size = 256
-epochs = 100
+epochs = 40
 history = LSTM_gyr.fit(gyro_train, train_labels,
                     batch_size = batch_size,
                     epochs = epochs,
                     validation_split = 0.15,
-                    callbacks = [stop_early],
+                    # callbacks = [stop_early],
                     shuffle = True,
                     verbose = 2)
 
@@ -85,28 +112,76 @@ history = LSTM_gyr.fit(gyro_train, train_labels,
 scores = LSTM_gyr.evaluate(gyro_test, test_labels)
 print('Test loss: %.2f' %scores[0])
 print('Test accuracy: %0.2f' %scores[1])
-
-def plot_train_and_val(history):
-    plt.figure(figsize=(10,5))
-    plt.plot(history.history['accuracy'])
-    plt.plot(history.history['val_accuracy'])
-    plt.title('model accuracy')
-    plt.ylabel('accuracy')
-    plt.xlabel('epoch')
-    plt.legend(['train', 'Validation'], loc='upper left')
-    plt.show()
-    plt.savefig('Model_accuracy.png')
-    plt.figure(figsize=(10,5))
-    plt.plot(history.history['loss'])
-    plt.plot(history.history['val_loss'])
-    plt.title('model loss')
-    plt.ylabel('loss')
-    plt.xlabel('epoch')
-    plt.legend(['train', 'Validation'], loc='upper left')
-    plt.show()
-    plt.savefig('Model_loss.png')
-
-plot_train_and_val(history)
+plot_train_and_val(history, model_name='LSTM_Gyro')
 
 
-    
+#######################################
+# LSTM model for Accelerometer imput
+#####################################
+LSTM_acc = LSTM_model(input_shape = acc_train.shape[1:], output_size=6)
+opt = keras.optimizers.Adam(lr=0.001 , beta_1=0.9, beta_2=0.999)
+LSTM_acc.compile(loss = 'categorical_crossentropy',
+            optimizer = opt,
+            metrics = ['accuracy'])
+
+stop_early = keras.callbacks.EarlyStopping(monitor='val_loss', patience=10, verbose=1 )
+
+batch_size = 256
+epochs = 40
+history = LSTM_acc.fit(acc_train, train_labels,
+                    batch_size = batch_size,
+                    epochs = epochs,
+                    validation_split = 0.15,
+                     callbacks = [stop_early],
+                    shuffle = True,
+                    verbose = 2)
+
+
+scores = LSTM_acc.evaluate(acc_test, test_labels)
+print('Test loss: %.2f' %scores[0])
+print('Test accuracy: %0.2f' %scores[1])
+plot_train_and_val(history, model_name='LSTM_acc')
+
+
+#################################################################################
+# LSTM 3 Model removing the top layer of LSTM_gyro model and adding 3 more LSTM layers
+#################################################################################
+
+#removing the sofmax and dense layer
+LSTM_gyr.pop()
+LSTM_gyr.pop()
+#making all other layer freeze
+for layer in LSTM_gyr.layers:
+    layer.trainable = False
+
+LSTM_gyr.add(RepeatVector(128))
+LSTM_gyr.add(LSTM(100, return_sequences = True, activation = 'relu'))
+LSTM_gyr.add(LSTM(100, return_sequences = True, activation = 'relu'))
+LSTM_gyr.add(LSTM(100, return_sequences = False, activation = 'relu'))
+LSTM_gyr.add(Dense(6))
+LSTM_gyr.add(Softmax())
+LSTM_gyr.summary()
+
+
+opt = keras.optimizers.Adam(lr=0.001 , beta_1=0.9, beta_2=0.999)
+LSTM_gyr.compile(loss = 'categorical_crossentropy',
+            optimizer = opt,
+            metrics = ['accuracy'])
+
+stop_early = keras.callbacks.EarlyStopping(monitor='val_loss', patience=10, verbose=1 )
+
+batch_size = 256
+epochs = 40
+history = LSTM_gyr.fit(gyro_train, train_labels,
+                    batch_size = batch_size,
+                    epochs = epochs,
+                    validation_split = 0.15,
+                     callbacks = [stop_early],
+                    shuffle = True,
+                    verbose = 2)
+
+
+scores = LSTM_gyr.evaluate(gyro_test, test_labels)
+print('Test loss: %.2f' %scores[0])
+print('Test accuracy: %0.2f' %scores[1])
+plot_train_and_val(history, model_name='LSTM_Gyro_with_added_layers')
