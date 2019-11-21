@@ -18,16 +18,29 @@ test_labels = test_labels.label.values
 6 LAYING
 '''
 
-def map_label_1(label):
+def map_label_1(label, numeric_label = None):
     label_1_map = {1:'WALKING',
                 2:'WALKING',
                 3:'WALKING',
                 4:'SITTING',
                 5:'STANDING',
                 6:'LAYING'}
+    #to map numeric label, 0:walking, 1: sitting, 2:standing, 3:laying
+    numeric_maping = { 
+                    1:0,
+                    2:0,
+                    3:0,
+                    4:1,
+                    5:2,
+                    6:3 
+                    }
     label = pd.Series(label)
     label_1 = label.map(label_1_map)
-    return label_1.values
+    if numeric_label:
+        label_numeric = label.map(numeric_maping)
+        return label_numeric.values
+    else:
+        return label_1.values
 
 def map_mobility_score(label):
     '''
