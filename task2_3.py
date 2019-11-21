@@ -98,7 +98,7 @@ op1 = Softmax(name = 'activiy')(op1)
 
 model = Model(inputs = [input1, input2], outputs = [op1, op2])
 model.summary()
-plot_model(model, to_file='model.png')
+# plot_model(model, to_file='model.png')
 
 
 ###################################
@@ -106,9 +106,9 @@ plot_model(model, to_file='model.png')
 #####################################
 
 
-opt = keras.optimizers.Adam(lr=0.0001 , beta_1=0.9, beta_2=0.999)
+# opt = keras.optimizers.Adam(lr=0.001)
 model.compile(loss = ['categorical_crossentropy','mse'],
-            optimizer = opt,
+            optimizer = 'RMSprop',
             metrics = ['accuracy'])
 
 stop_early = keras.callbacks.EarlyStopping(monitor='val_loss', patience=10, verbose=1 )
